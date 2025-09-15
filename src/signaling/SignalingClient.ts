@@ -1,7 +1,7 @@
 import { EventEmitter } from "typed-event-emitter"
 import { Logger } from "../helpers/Logger"
 import { RandomGenerator } from "../helpers/RandomGenerator"
-import { EncryptedMQTTClient } from "./EncryptedMQTTClient"
+import { EncryptedMQTTClient } from "../mqtt/EncryptedMQTTClient"
 
 const VERBOSE = false
 
@@ -150,7 +150,7 @@ export class SignalingClient extends EventEmitter {
       await this.leaveRoom()
     }
 
-    await this.client.setRoom(roomId, passkey)
+    await this.client.joinTopic(roomId, passkey)
     await this.sendHello()
 
     this.currentRoomKey = roomId + passkey

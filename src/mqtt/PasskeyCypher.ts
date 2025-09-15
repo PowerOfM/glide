@@ -1,21 +1,19 @@
 import { hash } from "./hash"
 
-const PASSKEY_PREFIX = "AeroDrop"
+const PASSKEY_PREFIX = "G_L_I_D_E_"
 const IV_LEN = 12
 const SALT_LEN = 16
 
-export class DataEncrypter {
-  private passkey: string = crypto.randomUUID()
+export class PasskeyCypher {
+  public static async build(key: string) {
+    const hashed = await hash(PASSKEY_PREFIX + key)
+    return new PasskeyCypher(hashed)
+  }
+
   private salt?: Uint8Array
   private key?: CryptoKey
 
-  public async buildPasskey(key: string, suffix: string) {
-    const hashed = await hash(key)
-    this.passkey = PASSKEY_PREFIX + hashed + suffix
-
-    this.key = undefined
-    this.salt = undefined
-  }
+  private constructor(private readonly passkey: string) {}
 
   public async encrypt(plainText: string): Promise<string> {
     const salt = this.getSalt()
@@ -106,7 +104,6 @@ export class UInt8Encoder {
     const output: string[] = []
     const len = array.length
     for (let i = 0; i < len; i++) {
-      // output.push(array[i].toString(36).padStart(2, "0"));
       output.push(String.fromCharCode(array[i]))
     }
 

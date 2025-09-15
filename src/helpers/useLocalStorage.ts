@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react"
 
+export const LOCAL_STORAGE_PREFIX = "GLIDE-"
+
 export const useLocalStorage = (
   key: string,
   initialValue: string
@@ -7,14 +9,14 @@ export const useLocalStorage = (
   const [value, setValue] = useState(initialValue)
 
   useEffect(() => {
-    const storedValue = localStorage.getItem(key)
+    const storedValue = localStorage.getItem(LOCAL_STORAGE_PREFIX + key)
     if (storedValue) {
       setValue(storedValue)
     }
   }, [key])
 
   useEffect(() => {
-    localStorage.setItem(key, value)
+    localStorage.setItem(LOCAL_STORAGE_PREFIX + key, value)
   }, [key, value])
 
   return [value, setValue]
