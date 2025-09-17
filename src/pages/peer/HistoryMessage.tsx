@@ -1,8 +1,8 @@
 import clsx from "clsx"
 import { CopyIcon } from "lucide-react"
 import toast from "react-hot-toast"
-import { IconButton } from "../components/IconButton"
-import cl from "./PeeringPage.module.css"
+import { IconButton } from "../../components/IconButton"
+import cl from "./PeerPage.module.css"
 import { IHistoryMessageItem } from "./usePeeringClient"
 
 interface IProps {

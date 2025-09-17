@@ -1,8 +1,9 @@
 import mqtt from "mqtt"
 import { Emitter } from "strict-event-emitter"
-import { PasskeyCypher } from "./PasskeyCypher"
+import { PasskeyCypher } from "./cypers/PasskeyCypher"
 import { hash } from "./hash"
 import { Logger } from "../helpers/Logger"
+import { ICypher } from "./cypers/CypherTypes"
 
 const VERBOSE = false
 const TOPIC_PREFIX = "GSP"
@@ -44,7 +45,7 @@ export class EncryptedMQTTClient extends Emitter<EncryptedMQTTClientEvents> {
   private readonly client: mqtt.MqttClient
 
   private readonly encodedTopicMap: Record<EncodedTopic, Topic> = {}
-  private readonly topicCyphers: Record<EncodedTopic, PasskeyCypher> = {}
+  private readonly topicCyphers: Record<EncodedTopic, ICypher> = {}
 
   private _status: MQTTClientStatus = MQTTClientStatus.connecting
   public get status() {
@@ -100,6 +101,7 @@ export class EncryptedMQTTClient extends Emitter<EncryptedMQTTClientEvents> {
     this.encodedTopicMap[encodedTopic] = topic
     this.topicCyphers[encodedTopic] = await PasskeyCypher.build(encodedTopic)
 
+    this.logger.debug("Subscribing to", { topic, encodedTopic })
     await this.client.subscribeAsync(encodedTopic)
   }
 
@@ -116,16 +118,20 @@ export class EncryptedMQTTClient extends Emitter<EncryptedMQTTClientEvents> {
     await this.client.endAsync()
   }
 
-  // TODO: allow caller to register cypher for a specific topic
-  // then use it for pub-key comms
+  public setTopicCypher(topic: string, cypher: ICypher) {
+    this.topicCyphers[topic] = cypher
+  }
 
-  public async send(topic: string, data: string) {
+  public async send(topic: string, data: string | object) {
     const encodedTopic = await this.encodeTopic(topic)
     const cypher = this.topicCyphers[encodedTopic]
     if (!cypher) {
       throw new Error(`Client not subscribed to the topic ${topic}`)
     }
 
+    if (typeof data !== "string") {
+      data = JSON.stringify(data)
+    }
     const payload = await cypher.encrypt(data)
     if (VERBOSE) this.logger.debug("Sending", { encodedTopic, payload })
 
@@ -157,21 +163,6 @@ export class EncryptedMQTTClient extends Emitter<EncryptedMQTTClientEvents> {
       this.logger.error("Error decrypting message", error)
     }
   }
-
-  // private createId() {
-  //   const now = Date.now()
-  //   const storedId = localStorage.getItem(ID_STORAGE_KEY)
-  //   const expiry = now - Number(localStorage.getItem(ID_TIMESTAMP_KEY))
-
-  //   if (storedId && expiry < ID_EXPIRY_MS) {
-  //     return storedId
-  //   }
-
-  //   const newId = crypto.randomUUID().replace(/-/g, "")
-  //   localStorage.setItem(ID_STORAGE_KEY, newId)
-  //   localStorage.setItem(ID_TIMESTAMP_KEY, now.toString())
-  //   return newId
-  // }
 
   // TODO: make this not break at midnight
   public async encodeTopic(topic: string): Promise<EncodedTopic> {

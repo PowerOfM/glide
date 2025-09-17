@@ -1,8 +1,8 @@
 import { EventEmitter } from "typed-event-emitter"
-import { Logger } from "../../helpers/Logger"
+import { Logger } from "../../../helpers/Logger"
 
 export abstract class AbstractPeeringChannel<
-  T extends object = object
+  T extends object = object,
 > extends EventEmitter {
   public onOpen = this.registerEvent<[this, Event]>()
   public onClose = this.registerEvent<[this, Event]>()

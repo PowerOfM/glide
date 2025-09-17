@@ -1,5 +1,5 @@
 import toast from "react-hot-toast"
-import { Signal } from "../../helpers/Signal"
+import { Signal } from "../../../helpers/Signal"
 import {
   AbstractPeeringFileChannel,
   IFileCommand,

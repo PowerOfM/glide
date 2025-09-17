@@ -16,6 +16,14 @@ class MQTTManagerSingleton extends Emitter<MQTTManagerEvents> {
   public getClient() {
     return this.client
   }
+
+  public destroyClient() {
+    this.removeAllListeners()
+    if (this.client) {
+      this.client.destroy()
+      this.client = null
+    }
+  }
 }
 
 export const MQTTManager = new MQTTManagerSingleton()

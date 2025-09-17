@@ -1,8 +1,8 @@
 import clsx from "clsx"
 import { DownloadIcon, ImageIcon, XIcon } from "lucide-react"
-import { IconButton } from "../components/IconButton"
-import { FileSaver } from "../helpers/FileSaver"
-import { useSignal } from "../helpers/Signal"
+import { IconButton } from "../../components/IconButton"
+import { FileSaver } from "../../helpers/FileSaver"
+import { useSignal } from "../../helpers/Signal"
 import cl from "./HistoryItems.module.css"
 import { IHistoryFileItem } from "./usePeeringClient"
 
@@ -29,7 +29,7 @@ export const HistoryFile = ({ item, onDownload }: IProps) => {
   const isDownloading =
     item.file.progressSignal &&
     !item.file.progressSignal.isAborted &&
-    progress !== null &&
+    progress != null &&
     progress < 100
 
   const handleDownloadClick = () => {

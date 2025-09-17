@@ -6,24 +6,21 @@ import {
   UnplugIcon,
 } from "lucide-react"
 import { FormEvent, Fragment, useState } from "react"
-import { Badge } from "../components/Badge"
-import { Button } from "../components/Button"
-import { InputForm } from "../components/InputForm"
-import { IPeerConnection } from "../sharedTypes"
+import { Badge } from "../../components/Badge"
+import { Button } from "../../components/Button"
+import { InputForm } from "../../components/InputForm"
 import { DisconnectPrompt } from "./DisconnectPrompt"
 import { HistoryFile } from "./HistoryFile"
 import { HistoryMessage } from "./HistoryMessage"
-import cl from "./PeeringPage.module.css"
+import cl from "./PeerPage.module.css"
 import { usePeeringClient } from "./usePeeringClient"
+import { WebRTCManager } from "../../webrtc/WebRTCManager"
 
 const ACCEPT_IMAGE = "image/*"
 const ACCEPT_FILE = "*/*"
 
-interface IProps {
-  peerConnection: IPeerConnection
-}
-
-export const PeeringPage = ({ peerConnection }: IProps) => {
+export const PeerPage = () => {
+  const peerConnection = WebRTCManager.getConnection()
   const [disconnectPromptOpen, setDisconnectPromptOpen] = useState(false)
   const [message, setMessage] = useState<string>("")
   const {

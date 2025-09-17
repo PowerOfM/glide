@@ -1,6 +1,6 @@
 import toast from "react-hot-toast"
-import { FileSaver } from "../../helpers/FileSaver"
-import { Signal } from "../../helpers/Signal"
+import { FileSaver } from "../../../helpers/FileSaver"
+import { Signal } from "../../../helpers/Signal"
 import {
   AbstractPeeringFileChannel,
   IFileCommand,

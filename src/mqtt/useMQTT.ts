@@ -1,15 +1,21 @@
 import { useEffect, useState } from "react"
+import mqttBrokers from "../assets/mqttBrokers.json"
+import { Logger } from "../helpers/Logger"
+import { useLocalStorage } from "../helpers/useLocalStorage"
 import { EncryptedMQTTClient } from "./EncryptedMQTTClient"
 import { MQTTManager } from "./MQTTManager"
-import { Logger } from "../helpers/Logger"
 
 const logger = new Logger("useMQTT")
 
-export const useMQTT = (
-  mqttBrokerUrl: string
-): [EncryptedMQTTClient, boolean, Error | null] => {
+export const useMQTT = (): [EncryptedMQTTClient, boolean, Error | null] => {
+  const [mqttBrokerUrl] = useLocalStorage(
+    "mqtt-broker",
+    "ws://localhost:8080" || mqttBrokers[0]
+  )
   const [connected, setConnected] = useState(false)
   const [error, setError] = useState<Error | null>(null)
+
+  // Initialize client state from MQTTManager or create new
   const [client, setClient] = useState(() => {
     const existingClient = MQTTManager.getClient()
     if (existingClient) {
@@ -36,6 +42,7 @@ export const useMQTT = (
     return () => {
       MQTTManager.off("change", handler)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Create client on mount and if broker URL changes
@@ -58,28 +65,39 @@ export const useMQTT = (
 
   // Listen to client events
   useEffect(() => {
+    let isMounted = true
     setConnected(false)
     setError(null)
 
-    console.log("SETTING UP MQTT LISTENERS")
+    logger.debug("Setting up MQTT client event listeners.")
     client.once("connect", () => {
+      if (!isMounted) return
       setConnected(true)
       console.log("connected!")
     })
     client.once("disconnect", (reason) => {
+      if (!isMounted) return
       setConnected(false)
       console.log("disconnected", reason)
     })
-    client.on("error", (error) => {
-      console.log("error", error)
-      setError(error)
-    })
-    client.on("decryptError", (topic, error) => {
-      console.log("decryptError", topic, error)
-    })
+
+    const handleError = (err: Error) => {
+      if (!isMounted) return
+      console.log("error", err)
+      setError(err)
+    }
+    const handleDecryptError = (topic: string, err: Error) => {
+      if (!isMounted) return
+      console.log("decryptError", topic, err)
+    }
+
+    client.on("error", handleError)
+    client.on("decryptError", handleDecryptError)
 
     return () => {
-      // TODO: cleanup
+      isMounted = false
+      client.off("error", handleError)
+      client.off("decryptError", handleDecryptError)
     }
   }, [client])
 

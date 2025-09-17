@@ -1,6 +1,6 @@
-import { Button } from "../components/Button"
-import { Modal } from "../components/Modal"
-import cl from "./PeeringPage.module.css"
+import { Button } from "../../components/Button"
+import { Modal } from "../../components/Modal"
+import cl from "./PeerPage.module.css"
 
 interface IProps {
   open: boolean

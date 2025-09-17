@@ -1,10 +1,12 @@
-import { hash } from "./hash"
+import { ICypher } from "./CypherTypes"
+import { Uint8Encoder } from "./Uint8Encoder"
+import { hash } from "../hash"
 
 const PASSKEY_PREFIX = "G_L_I_D_E_"
 const IV_LEN = 12
 const SALT_LEN = 16
 
-export class PasskeyCypher {
+export class PasskeyCypher implements ICypher {
   public static async build(key: string) {
     const hashed = await hash(PASSKEY_PREFIX + key)
     return new PasskeyCypher(hashed)
@@ -31,11 +33,11 @@ export class PasskeyCypher {
       ...salt,
       ...new Uint8Array(cipherText),
     ])
-    return UInt8Encoder.toString(result)
+    return Uint8Encoder.toString(result)
   }
 
   public async decrypt(input: string): Promise<string> {
-    const inputArray = UInt8Encoder.toArray(input)
+    const inputArray = Uint8Encoder.toArray(input)
 
     const iv = inputArray.slice(0, IV_LEN)
     const salt = inputArray.slice(IV_LEN, SALT_LEN + IV_LEN)
@@ -96,21 +98,5 @@ export class PasskeyCypher {
     this.key = key
     this.salt = salt
     return key
-  }
-}
-
-export class UInt8Encoder {
-  public static toString(array: Uint8Array) {
-    const output: string[] = []
-    const len = array.length
-    for (let i = 0; i < len; i++) {
-      output.push(String.fromCharCode(array[i]))
-    }
-
-    return btoa(output.join(""))
-  }
-
-  public static toArray(chars: string) {
-    return Uint8Array.from(atob(chars), (c) => c.charCodeAt(0))
   }
 }

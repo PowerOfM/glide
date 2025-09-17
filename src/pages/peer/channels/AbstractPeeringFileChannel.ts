@@ -1,4 +1,4 @@
-import { Signal } from "../../helpers/Signal"
+import { Signal } from "../../../helpers/Signal"
 import { AbstractPeeringChannel } from "./AbstractPeeringChannel"
 import { IFileMetadata } from "./PeeringCommandChannel"
 

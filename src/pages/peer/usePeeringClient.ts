@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { IPeerConnection } from "../sharedTypes"
+import { IPeerConnection } from "../../sharedTypes"
 import { PeeringClient, PeeringState } from "./PeeringClient"
 import {
   IFileOffered,

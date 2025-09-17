@@ -1,7 +1,7 @@
 import toast from "react-hot-toast"
 import { EventEmitter } from "typed-event-emitter"
-import { Logger } from "../helpers/Logger"
-import { Signal } from "../helpers/Signal"
+import { Logger } from "../../helpers/Logger"
+import { Signal } from "../../helpers/Signal"
 import {
   AbstractPeeringFileChannel,
   IFileOffered,
