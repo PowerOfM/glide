@@ -1,6 +1,6 @@
 import { ICypher } from "./CypherTypes"
 import { Uint8Encoder } from "./Uint8Encoder"
-import { hash } from "../hash"
+import { hash } from "../TopicHasher"
 
 const PASSKEY_PREFIX = "G_L_I_D_E_"
 const IV_LEN = 12

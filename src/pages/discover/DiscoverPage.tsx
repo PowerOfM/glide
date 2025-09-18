@@ -1,16 +1,20 @@
 import { useCallback } from "react"
 import { useLocation } from "wouter"
+import { Badge } from "../../components/Badge"
+import { Button } from "../../components/Button"
 import { useAsync } from "../../helpers/useAsync"
-import { IPairRequestMessage } from "../../mqtt/protocols/DiscoveryProtocol"
+import {
+  IHelloMessage,
+  IPairRequestMessage,
+} from "../../mqtt/protocols/DiscoveryProtocol"
 import { IStartMessage } from "../../mqtt/protocols/SignalingProtocol"
 import { useMQTT } from "../../mqtt/useMQTT"
 import { STUNClient } from "../../signaling/STUNClient"
+import cl from "./DiscoverPage.module.css"
+import { DeviceButton } from "./components/DeviceButton"
+import { useDeviceList } from "./helpers/useDeviceList"
 import { useDirectTopic } from "./helpers/useDirectTopic"
 import { useDiscoveryTopic } from "./helpers/useDiscoveryTopic"
-import cl from "./DiscoverPage.module.css"
-import { Badge } from "../../components/Badge"
-import { Button } from "../../components/Button"
-import { DeviceButton } from "./components/DeviceButton"
 
 /**
  * Start:
@@ -32,27 +36,38 @@ export const DiscoverPage = () => {
   const [, navigate] = useLocation()
   const [ipResult, ipLoading] = useAsync(() => STUNClient.getIp())
   const [mqttClient, mqttConnected, mqttError] = useMQTT()
+  const devices = useDeviceList()
+
+  const handleDeviceFound = useCallback(
+    (device: IHelloMessage) => devices.update(device),
+    [devices]
+  )
 
   const handlePairRequest = useCallback(
-    (msg: IPairRequestMessage) => {
-      navigate("/pair", { state: msg })
-    },
+    (msg: IPairRequestMessage) => navigate("/pair", { state: msg }),
     [navigate]
   )
 
   const handleSignalStart = useCallback(
-    (msg: IStartMessage) => {
-      navigate("/signal", { state: msg })
-    },
+    (msg: IStartMessage) => navigate("/signal", { state: msg }),
     [navigate]
   )
 
-  useDirectTopic(mqttConnected ? mqttClient : null, handleSignalStart)
-  const [deviceList, deviceListError] = useDiscoveryTopic(
+  const discoveryError = useDiscoveryTopic(
     ipResult ?? null,
     mqttConnected ? mqttClient : null,
+    handleDeviceFound,
     handlePairRequest
   )
+  const directError = useDirectTopic(
+    mqttConnected ? mqttClient : null,
+    handleSignalStart
+  )
+
+  const handleDeviceClick = (device: { id: string; name: string }) => {
+    if (!mqttClient) return
+    navigate("/request", { state: device })
+  }
 
   return (
     <div className="page">
@@ -93,14 +108,21 @@ export const DiscoverPage = () => {
 
       <div>
         {mqttError && <p className="error">MQTT Error: {mqttError.message}</p>}
-        {deviceListError && (
-          <p className="error">Discovery Error: {deviceListError.message}</p>
+        {discoveryError && (
+          <p className="error">Discovery Error: {discoveryError.message}</p>
+        )}
+        {directError && (
+          <p className="error">Direct Error: {directError.message}</p>
         )}
       </div>
 
       <div className={cl.peersList}>
-        {deviceList.map((device) => (
-          <DeviceButton key={device.id} device={device} onClick={console.log} />
+        {devices.list.map((device) => (
+          <DeviceButton
+            key={device.id}
+            device={device}
+            onClick={handleDeviceClick}
+          />
         ))}
       </div>
     </div>

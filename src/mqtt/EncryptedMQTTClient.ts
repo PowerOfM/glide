@@ -1,12 +1,10 @@
 import mqtt from "mqtt"
 import { Emitter } from "strict-event-emitter"
 import { PasskeyCypher } from "./cypers/PasskeyCypher"
-import { hash } from "./hash"
 import { Logger } from "../helpers/Logger"
 import { ICypher } from "./cypers/CypherTypes"
 
 const VERBOSE = false
-const TOPIC_PREFIX = "GSP"
 
 // LOCAL: ws://localhost:8883
 
@@ -26,7 +24,6 @@ export enum MQTTClientStatus {
   error,
 }
 
-type EncodedTopic = string
 type Topic = string
 
 type EncryptedMQTTClientEvents = {
@@ -44,8 +41,7 @@ export class EncryptedMQTTClient extends Emitter<EncryptedMQTTClientEvents> {
   private readonly logger = new Logger("MQTT")
   private readonly client: mqtt.MqttClient
 
-  private readonly encodedTopicMap: Record<EncodedTopic, Topic> = {}
-  private readonly topicCyphers: Record<EncodedTopic, ICypher> = {}
+  private readonly topicCyphers: Record<Topic, ICypher> = {}
 
   private _status: MQTTClientStatus = MQTTClientStatus.connecting
   public get status() {
@@ -95,36 +91,37 @@ export class EncryptedMQTTClient extends Emitter<EncryptedMQTTClientEvents> {
     })
   }
 
-  public async subscribe(topic: string) {
-    const encodedTopic = await this.encodeTopic(topic)
-
-    this.encodedTopicMap[encodedTopic] = topic
-    this.topicCyphers[encodedTopic] = await PasskeyCypher.build(encodedTopic)
-
-    this.logger.debug("Subscribing to", { topic, encodedTopic })
-    await this.client.subscribeAsync(encodedTopic)
-  }
-
-  public async unsubscribe(topic: string) {
-    const encodedTopic = await this.encodeTopic(topic)
-    return this.client.unsubscribeAsync(encodedTopic)
-    delete this.topicCyphers[encodedTopic]
-    delete this.encodedTopicMap[encodedTopic]
-  }
-
   public async destroy() {
     this._status = MQTTClientStatus.disconnected
     this.removeAllListeners()
     await this.client.endAsync()
   }
 
-  public setTopicCypher(topic: string, cypher: ICypher) {
-    this.topicCyphers[topic] = cypher
+  public async subscribe(topic: string | string[]) {
+    const topicStr = this.normalizeTopic(topic)
+    const topicRoot = topicStr.split("/")[0]
+    this.topicCyphers[topicRoot] = await PasskeyCypher.build(topicStr)
+
+    this.logger.debug("Subscribing to", topicStr)
+    await this.client.subscribeAsync(topicStr)
   }
 
-  public async send(topic: string, data: string | object) {
-    const encodedTopic = await this.encodeTopic(topic)
-    const cypher = this.topicCyphers[encodedTopic]
+  public async unsubscribe(topic: string | string[]) {
+    const topicStr = this.normalizeTopic(topic)
+    const topicRoot = topicStr.split("/")[0]
+    delete this.topicCyphers[topicRoot]
+    return this.client.unsubscribeAsync(topicStr)
+  }
+  public async setTopicCypher(topic: string | string[], cypher: ICypher) {
+    const topicStr = this.normalizeTopic(topic)
+    const topicRoot = topicStr.split("/")[0]
+    this.topicCyphers[topicRoot] = cypher
+  }
+
+  public async send(topic: string | string[], data: string | object) {
+    const topicStr = this.normalizeTopic(topic)
+    const topicRoot = topicStr.split("/")[0]
+    const cypher = this.topicCyphers[topicRoot]
     if (!cypher) {
       throw new Error(`Client not subscribed to the topic ${topic}`)
     }
@@ -133,24 +130,28 @@ export class EncryptedMQTTClient extends Emitter<EncryptedMQTTClientEvents> {
       data = JSON.stringify(data)
     }
     const payload = await cypher.encrypt(data)
-    if (VERBOSE) this.logger.debug("Sending", { encodedTopic, payload })
+    if (VERBOSE) this.logger.debug("Sending", { topic: topicStr, payload })
 
-    return this.client.publishAsync(encodedTopic, payload)
+    return this.client.publishAsync(topicStr, payload, { retain: true })
   }
 
-  private async handleMessage(encodedTopic: string, payload: string) {
-    if (VERBOSE) this.logger.debug("Received", { encodedTopic, payload })
+  private async handleMessage(topic: string, payload: string) {
+    if (VERBOSE) this.logger.debug("Received", { topic, payload })
 
-    const cypher = this.topicCyphers[encodedTopic]
-    const topic = this.encodedTopicMap[encodedTopic]
-    if (!cypher || !topic) {
+    const topicRoot = topic.split("/")[0]
+    const cypher = this.topicCyphers[topicRoot]
+    if (!cypher) {
       this.logger.warn(
         "Received message for unknown topic. Unsubscribing...",
-        encodedTopic
+        topic
       )
-      await this.client.unsubscribeAsync(encodedTopic)
-      delete this.topicCyphers[encodedTopic]
-      delete this.encodedTopicMap[encodedTopic]
+
+      await this.unsubscribe(topic)
+      return
+    }
+
+    if (!payload) {
+      this.emit("data", topic, "")
       return
     }
 
@@ -164,15 +165,7 @@ export class EncryptedMQTTClient extends Emitter<EncryptedMQTTClientEvents> {
     }
   }
 
-  // TODO: make this not break at midnight
-  public async encodeTopic(topic: string): Promise<EncodedTopic> {
-    const date = new Date()
-    const dateStr =
-      String(date.getFullYear()).slice(2) +
-      String(date.getMonth()) +
-      date.getDate()
-
-    const hashed = await hash(topic + dateStr)
-    return TOPIC_PREFIX + hashed
+  private normalizeTopic(topic: string | string[]): string {
+    return typeof topic === "string" ? topic : topic.join("/")
   }
 }

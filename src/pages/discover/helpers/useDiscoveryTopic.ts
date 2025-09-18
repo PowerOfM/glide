@@ -1,99 +1,89 @@
-import { useEffect, useState } from "react"
-import { DeviceManager } from "../../../helpers/DeviceManager"
+import { useEffect, useRef, useState } from "react"
 import { Logger } from "../../../helpers/Logger"
+import { useAsyncEffect } from "../../../helpers/useAsync"
 import { EncryptedMQTTClient } from "../../../mqtt/EncryptedMQTTClient"
 import { MQTTMessageParser } from "../../../mqtt/MQTTMessageParser"
+import { TopicHasher } from "../../../mqtt/TopicHasher"
 import {
   HelloMessageSchema,
+  IHelloMessage,
   IPairRequestMessage,
-  LeaveMessageSchema,
-  PairRequestMessageSchema,
-  WelcomeMessageSchema,
   makeHelloMessage,
-  makeWelcomeMessage,
 } from "../../../mqtt/protocols/DiscoveryProtocol"
-import { IDevice, useDeviceList } from "./useDeviceList"
 
 const log = new Logger("DISCOVERY")
 
 export const useDiscoveryTopic = (
-  topic: string | null,
-  mqttClient: EncryptedMQTTClient | null,
+  topicValue: string | null,
+  mqttClient: EncryptedMQTTClient,
+  onDevice: (device: IHelloMessage) => void,
   onPairRequest: (msg: IPairRequestMessage) => void
-): [IDevice[], Error | null] => {
+): Error | null => {
+  const [broadcasting, setBroadcasting] = useState(false)
   const [error, setError] = useState<Error | null>(null)
-  const devices = useDeviceList()
+  const topicRef = useRef("")
+
+  useAsyncEffect(
+    async (mountedRef) => {
+      if (!topicValue) return
+
+      await mqttClient.waitForConnect()
+      if (!mountedRef.current) return
+
+      const topic = await TopicHasher.discovery(topicValue)
+      topicRef.current = topic
+
+      await mqttClient.subscribe(topic)
+      mqttClient.send(topic, makeHelloMessage())
+      log.debug(`Broadcasting on topic: ${topic}`)
+
+      const parser = new MQTTMessageParser([HelloMessageSchema])
+      const dataHandler = (topic: string, message: string) => {
+        if (topic !== topicRef.current || !mountedRef.current || !message) {
+          return
+        }
+
+        const parsed = parser.parse(message)
+        if (parsed) {
+          log.debug("Received device hello:", parsed)
+          onDevice(parsed)
+        }
+      }
+
+      mqttClient.on("data", dataHandler)
+      setBroadcasting(true)
+
+      return () => {
+        mqttClient.off("data", dataHandler)
+        if (topicRef.current) {
+          mqttClient.unsubscribe(topicRef.current)
+        }
+      }
+    },
+    setError,
+    [topicValue, mqttClient, onPairRequest]
+  )
 
   useEffect(() => {
-    if (!topic || !mqttClient) return
-    let isMounted = true
+    if (!broadcasting) return
 
-    const parser = new MQTTMessageParser([
-      HelloMessageSchema,
-      WelcomeMessageSchema,
-      LeaveMessageSchema,
-      PairRequestMessageSchema,
-    ])
-
-    log.debug("Setting up discovery over MQTT")
-    const discoveryTopic = `discovery_${topic}`
-    mqttClient
-      .subscribe(discoveryTopic)
-      .then(() => {
-        if (!isMounted) return
-
-        log.debug(`Subscribed to topic: ${discoveryTopic}`)
-        mqttClient.send(discoveryTopic, makeHelloMessage())
-      })
-      .catch((error: Error) => {
-        if (!isMounted) return
-
-        log.error("Failed to subscribe to discovery topic:", error)
-        setError(error)
-      })
-
-    const dataHandler = (topic: string, message: string) => {
-      if (topic !== discoveryTopic || !isMounted) return
-
-      const parsed = parser.parse(message)
-      switch (parsed?.type) {
-        case "hello":
-          if (parsed.id === DeviceManager.getId()) break
-          log.debug("Received HELLO message:", parsed)
-          devices.add(parsed)
-          mqttClient.send(discoveryTopic, makeWelcomeMessage())
-          break
-
-        case "welcome":
-          log.debug("Received WELCOME message:", parsed)
-          devices.add(parsed)
-          break
-
-        case "leave":
-          log.debug("Received LEAVE message:", parsed)
-          devices.remove(parsed.id)
-          break
-
-        case "pairRequest":
-          log.debug("Received PAIR REQUEST message:", parsed)
-          if (parsed.to === DeviceManager.getId()) {
-            onPairRequest(parsed)
-            // Navigate to pairing screen with parsed details
-            log.debug(
-              "Pair request is for this device, navigating to pairing screen."
-            )
-            // navigate(`/pairing/${parsed.sessionId}?partnerId=${parsed.partnerId}&partnerKey=${parsed.partnerEncryptedKey}`)
-          }
-          break
+    const interval = setInterval(() => {
+      const topic = topicRef.current
+      if (mqttClient && topic) {
+        mqttClient.send(topic, makeHelloMessage())
       }
-    }
-    mqttClient.on("data", dataHandler)
+    }, 2500)
+
+    const timeout = setTimeout(() => {
+      setBroadcasting(false)
+    }, 30000)
 
     return () => {
-      isMounted = false
-      mqttClient.off("data", dataHandler)
+      clearInterval(interval)
+      clearTimeout(timeout)
     }
-  }, [topic, mqttClient, onPairRequest])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [broadcasting])
 
-  return [devices.list, error]
+  return error
 }

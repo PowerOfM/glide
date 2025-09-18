@@ -1,6 +1,6 @@
 import clsx from "clsx"
 import { MonitorIcon, SmartphoneIcon } from "lucide-react"
-import { useRef } from "react"
+import { useLayoutEffect, useRef, useState } from "react"
 import { ColorHelper } from "../../../helpers/ColorHelper"
 import { DeviceManager, DeviceType } from "../../../helpers/DeviceManager"
 import cl from "../DiscoverPage.module.css"
@@ -14,12 +14,17 @@ interface IProps {
 export function DeviceButton({ device, onClick }: IProps) {
   const ref = useRef<HTMLDivElement>(null)
   const isYou = device.id === DeviceManager.getId()
+  const [iconColor, setIconColor] = useState("white")
 
-  const iconColor = ref.current
-    ? ColorHelper.getTextColor(
+  useLayoutEffect(() => {
+    if (!ref.current) return
+
+    setIconColor(
+      ColorHelper.getTextColor(
         window.getComputedStyle(ref.current).backgroundColor
       )
-    : "white"
+    )
+  }, [device.color])
 
   return (
     <div

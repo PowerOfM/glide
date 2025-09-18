@@ -1,42 +1,55 @@
+import { useState } from "react"
 import { DeviceManager } from "../../../helpers/DeviceManager"
 import { Logger } from "../../../helpers/Logger"
+import { useAsyncEffect } from "../../../helpers/useAsync"
 import { EncryptedMQTTClient } from "../../../mqtt/EncryptedMQTTClient"
-import { useEffect } from "react"
+import { MQTTMessageParser } from "../../../mqtt/MQTTMessageParser"
+import { TopicHasher } from "../../../mqtt/TopicHasher"
 import {
   IStartMessage,
   StartMessageSchema,
 } from "../../../mqtt/protocols/SignalingProtocol"
-import { MQTTMessageParser } from "../../../mqtt/MQTTMessageParser"
 
 const log = new Logger("DIRECT")
 
 export const useDirectTopic = (
-  mqttClient: EncryptedMQTTClient | null,
+  mqttClient: EncryptedMQTTClient,
   onStart: (msg: IStartMessage) => void
-) =>
-  useEffect(() => {
-    if (!mqttClient) return
-    let isMounted = true
+) => {
+  const [error, setError] = useState<Error | null>(null)
 
-    const parser = new MQTTMessageParser([StartMessageSchema])
+  useAsyncEffect(
+    async (mountedRef) => {
+      await mqttClient.waitForConnect()
+      if (!mountedRef.current) return
 
-    log.debug("Setting up direct protocol over MQTT")
-    const directTopic = `direct_${DeviceManager.getId()}`
-    mqttClient.subscribe(directTopic)
+      const parser = new MQTTMessageParser([StartMessageSchema])
+      const directTopic = await TopicHasher.direct(DeviceManager.getId())
 
-    const dataHandler = (topic: string, message: string) => {
-      if (topic !== directTopic || !isMounted) return
+      mqttClient.subscribe(directTopic)
+      log.debug("Subscribed to direct topic", directTopic)
 
-      const parsed = parser.parse(message)
-      if (parsed) {
-        onStart(parsed)
+      const dataHandler = (topic: string, message: string) => {
+        if (topic !== directTopic || !mountedRef.current || !message) {
+          return
+        }
+
+        const parsed = parser.parse(message)
+        if (parsed) {
+          onStart(parsed)
+        }
       }
-    }
 
-    mqttClient.on("data", dataHandler)
-    // TODO: set cypher for direct channel to private key/block (no sending from self on direct channel)
+      mqttClient.on("data", dataHandler)
 
-    return () => {
-      isMounted = false
-    }
-  }, [mqttClient, onStart])
+      return () => {
+        mqttClient.off("data", dataHandler)
+        mqttClient.unsubscribe(directTopic)
+      }
+    },
+    setError,
+    [mqttClient, onStart]
+  )
+
+  return error
+}
