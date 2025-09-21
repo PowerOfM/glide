@@ -7,7 +7,6 @@ import { TopicHasher } from "../../../mqtt/TopicHasher"
 import {
   HelloMessageSchema,
   IHelloMessage,
-  IPairRequestMessage,
   makeHelloMessage,
 } from "../../../mqtt/protocols/DiscoveryProtocol"
 
@@ -16,8 +15,7 @@ const log = new Logger("DISCOVERY")
 export const useDiscoveryTopic = (
   topicValue: string | null,
   mqttClient: EncryptedMQTTClient,
-  onDevice: (device: IHelloMessage) => void,
-  onPairRequest: (msg: IPairRequestMessage) => void
+  onDevice: (device: IHelloMessage) => void
 ): Error | null => {
   const [broadcasting, setBroadcasting] = useState(false)
   const [error, setError] = useState<Error | null>(null)
@@ -61,7 +59,7 @@ export const useDiscoveryTopic = (
       }
     },
     setError,
-    [topicValue, mqttClient, onPairRequest]
+    [topicValue, mqttClient]
   )
 
   useEffect(() => {

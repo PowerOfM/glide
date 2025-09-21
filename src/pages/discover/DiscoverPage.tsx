@@ -44,7 +44,7 @@ export const DiscoverPage = () => {
   )
 
   const handlePairRequest = useCallback(
-    (msg: IPairRequestMessage) => navigate("/pair", { state: msg }),
+    (msg: IPairRequestMessage) => navigate("/pair-response", { state: msg }),
     [navigate]
   )
 
@@ -55,18 +55,18 @@ export const DiscoverPage = () => {
 
   const discoveryError = useDiscoveryTopic(
     ipResult ?? null,
-    mqttConnected ? mqttClient : null,
-    handleDeviceFound,
-    handlePairRequest
+    mqttClient,
+    handleDeviceFound
   )
   const directError = useDirectTopic(
-    mqttConnected ? mqttClient : null,
-    handleSignalStart
+    mqttClient,
+    handleSignalStart,
+    handlePairRequest
   )
 
   const handleDeviceClick = (device: { id: string; name: string }) => {
     if (!mqttClient) return
-    navigate("/request", { state: device })
+    navigate("/pair-request", { state: device })
   }
 
   return (

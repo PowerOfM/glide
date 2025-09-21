@@ -10,7 +10,7 @@ const logger = new Logger("useMQTT")
 export const useMQTT = (): [EncryptedMQTTClient, boolean, Error | null] => {
   const [mqttBrokerUrl] = useLocalStorage(
     "mqtt-broker",
-    "ws://localhost:8080" || mqttBrokers[0]
+    "wss://mqtt.ionx.ca:443/mqtt" || mqttBrokers[0]
   )
   const [connected, setConnected] = useState(false)
   const [error, setError] = useState<Error | null>(null)

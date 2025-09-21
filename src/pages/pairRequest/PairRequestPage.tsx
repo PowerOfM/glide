@@ -1,15 +1,15 @@
 import { useLocation } from "wouter"
 import { useHistoryState } from "wouter/use-browser-location"
 import { DeviceKeyManager } from "../../helpers/DeviceKeyManager"
-import { useAsync, useAsyncEffect } from "../../helpers/useAsync"
-import { TopicHasher } from "../../mqtt/TopicHasher"
-import { PasskeyCypher } from "../../mqtt/cypers/PasskeyCypher"
-import { makePairRequestMessage } from "../../mqtt/protocols/DiscoveryProtocol"
-import { useMQTT } from "../../mqtt/useMQTT"
 import { DeviceManager } from "../../helpers/DeviceManager"
+import { useAsync, useAsyncEffect } from "../../helpers/useAsync"
 import { KeyPairCypher } from "../../mqtt/cypers/KeyPairCypher"
+import { PasskeyCypher } from "../../mqtt/cypers/PasskeyCypher"
 import { MQTTMessageParser } from "../../mqtt/MQTTMessageParser"
+import { makePairRequestMessage } from "../../mqtt/protocols/DiscoveryProtocol"
 import { StartMessageSchema } from "../../mqtt/protocols/SignalingProtocol"
+import { TopicHasher } from "../../mqtt/TopicHasher"
+import { useMQTT } from "../../mqtt/useMQTT"
 
 export const PairRequestPage = () => {
   const [, navigate] = useLocation()
@@ -73,6 +73,7 @@ export const PairRequestPage = () => {
 
     // Send Start-Pair message
     const partnerTopic = await TopicHasher.direct(state.id)
+    await mqttClient.subscribe(partnerTopic)
     await mqttClient.send(
       partnerTopic,
       makePairRequestMessage(encryptedPublicKey)

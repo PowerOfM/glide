@@ -6,6 +6,10 @@ import { EncryptedMQTTClient } from "../../../mqtt/EncryptedMQTTClient"
 import { MQTTMessageParser } from "../../../mqtt/MQTTMessageParser"
 import { TopicHasher } from "../../../mqtt/TopicHasher"
 import {
+  IPairRequestMessage,
+  PairRequestMessageSchema,
+} from "../../../mqtt/protocols/DiscoveryProtocol"
+import {
   IStartMessage,
   StartMessageSchema,
 } from "../../../mqtt/protocols/SignalingProtocol"
@@ -14,7 +18,8 @@ const log = new Logger("DIRECT")
 
 export const useDirectTopic = (
   mqttClient: EncryptedMQTTClient,
-  onStart: (msg: IStartMessage) => void
+  onStart: (msg: IStartMessage) => void,
+  onPairRequest: (msg: IPairRequestMessage) => void
 ) => {
   const [error, setError] = useState<Error | null>(null)
 
@@ -23,7 +28,10 @@ export const useDirectTopic = (
       await mqttClient.waitForConnect()
       if (!mountedRef.current) return
 
-      const parser = new MQTTMessageParser([StartMessageSchema])
+      const parser = new MQTTMessageParser([
+        StartMessageSchema,
+        PairRequestMessageSchema,
+      ])
       const directTopic = await TopicHasher.direct(DeviceManager.getId())
 
       mqttClient.subscribe(directTopic)
@@ -35,9 +43,18 @@ export const useDirectTopic = (
         }
 
         const parsed = parser.parse(message)
-        if (parsed) {
-          onStart(parsed)
+        if (!parsed) {
+          return
         }
+
+        if (parsed.type === "start") {
+          log.debug("Received start message", parsed)
+          onStart(parsed)
+        } else if (parsed.type === "pairRequest") {
+          log.debug("Received pair request message", parsed)
+          onPairRequest(parsed)
+        }
+        mqttClient.send(topic, "")
       }
 
       mqttClient.on("data", dataHandler)
