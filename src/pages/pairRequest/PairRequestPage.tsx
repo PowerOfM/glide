@@ -3,12 +3,12 @@ import { useHistoryState } from "wouter/use-browser-location"
 import { DeviceKeyManager } from "../../helpers/DeviceKeyManager"
 import { DeviceManager } from "../../helpers/DeviceManager"
 import { useAsync, useAsyncEffect } from "../../helpers/useAsync"
-import { KeyPairCypher } from "../../mqtt/cypers/KeyPairCypher"
-import { PasskeyCypher } from "../../mqtt/cypers/PasskeyCypher"
+import { KeyPairCypher } from "../../mqtt/cyphers/KeyPairCypher"
+import { PasskeyCypher } from "../../mqtt/cyphers/PasskeyCypher"
 import { MQTTMessageParser } from "../../mqtt/MQTTMessageParser"
 import { makePairRequestMessage } from "../../mqtt/protocols/DiscoveryProtocol"
 import { StartMessageSchema } from "../../mqtt/protocols/SignalingProtocol"
-import { TopicHasher } from "../../mqtt/TopicHasher"
+import { hash, TopicHasher } from "../../mqtt/TopicHasher"
 import { useMQTT } from "../../mqtt/useMQTT"
 
 export const PairRequestPage = () => {
@@ -60,14 +60,18 @@ export const PairRequestPage = () => {
 
     await mqttClient.waitForConnect()
 
-    // Create join code (TOTP)
-    // TODO: figure out TOTP generation (or emoji)
-    const totp = "test"
-    const totpCypher = await PasskeyCypher.build(totp)
+    // Create join code
+    // TODO: figure out code generation (or emoji)
+    const code = "test"
+    const codeCypher = await PasskeyCypher.build(code)
 
-    // Encrypt public key with TOTP
+    // Encrypt public key with code
     const publicJWK = await DeviceKeyManager.getPublicKeyJwk()
-    const encryptedPublicKey = await totpCypher.encrypt(
+
+    const keyHash = await hash(JSON.stringify(publicJWK))
+    console.log("PUBLIC KEY HASH", { keyHash })
+
+    const encryptedPublicKey = await codeCypher.encrypt(
       JSON.stringify(publicJWK)
     )
 
@@ -79,7 +83,7 @@ export const PairRequestPage = () => {
       makePairRequestMessage(encryptedPublicKey)
     )
 
-    return totp
+    return code
   })
 
   return (

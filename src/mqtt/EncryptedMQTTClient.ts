@@ -1,8 +1,8 @@
 import mqtt from "mqtt"
 import { Emitter } from "strict-event-emitter"
-import { PasskeyCypher } from "./cypers/PasskeyCypher"
 import { Logger } from "../helpers/Logger"
-import { ICypher } from "./cypers/CypherTypes"
+import { ICypher } from "./cyphers/CypherTypes"
+import { PasskeyCypher } from "./cyphers/PasskeyCypher"
 
 const VERBOSE = false
 

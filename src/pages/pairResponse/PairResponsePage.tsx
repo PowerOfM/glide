@@ -4,11 +4,11 @@ import { useHistoryState } from "wouter/use-browser-location"
 import { Button } from "../../components/Button"
 import { DeviceKeyManager } from "../../helpers/DeviceKeyManager"
 import { DeviceManager } from "../../helpers/DeviceManager"
-import { KeyPairCypher } from "../../mqtt/cypers/KeyPairCypher"
-import { PasskeyCypher } from "../../mqtt/cypers/PasskeyCypher"
+import { KeyPairCypher } from "../../mqtt/cyphers/KeyPairCypher"
+import { PasskeyCypher } from "../../mqtt/cyphers/PasskeyCypher"
 import { IPairRequestMessage } from "../../mqtt/protocols/DiscoveryProtocol"
 import { makeStartMessage } from "../../mqtt/protocols/SignalingProtocol"
-import { TopicHasher } from "../../mqtt/TopicHasher"
+import { hash, TopicHasher } from "../../mqtt/TopicHasher"
 import { useMQTT } from "../../mqtt/useMQTT"
 
 export const PairResponsePage = () => {
@@ -39,12 +39,14 @@ export const PairResponsePage = () => {
       await mqttClient.waitForConnect()
 
       // Create cypher with the entered code
-      const totpCypher = await PasskeyCypher.build(code)
+      const codeCypher = await PasskeyCypher.build(code)
 
       // Decrypt partner's public key
       let partnerPublicKeyJwk: JsonWebKey
       try {
-        const decryptedKey = await totpCypher.decrypt(state.key)
+        const decryptedKey = await codeCypher.decrypt(state.key)
+        const keyHash = await hash(decryptedKey)
+        console.log("PARTNER KEY HASH", { keyHash })
         partnerPublicKeyJwk = JSON.parse(decryptedKey)
       } catch (err) {
         setError("Invalid code. Please try again.")
@@ -52,41 +54,37 @@ export const PairResponsePage = () => {
         return
       }
 
+      console.log("Decrypted partner's public key", partnerPublicKeyJwk)
+
       // Import partner's public key
       const partnerPublicKey = await crypto.subtle.importKey(
         "jwk",
         partnerPublicKeyJwk,
         { name: DeviceKeyManager.ALGO, hash: DeviceKeyManager.HASH },
         true,
-        ["encrypt"]
+        ["encrypt", "wrapKey"]
       )
-
-      // Create cypher with partner's public key for encrypting our response
-      const partnerCypher = new KeyPairCypher(partnerPublicKey, null)
 
       // Get our public key and encrypt it with partner's public key
-      const ourPublicKeyJwk = await DeviceKeyManager.getPublicKeyJwk()
-      const encryptedOurPublicKey = await partnerCypher.encrypt(
-        JSON.stringify(ourPublicKeyJwk)
+      const ourPublicKeyJwk = await DeviceKeyManager.wrapPublicKey(
+        partnerPublicKey
       )
 
-      // Generate session ID
-      const sessionId = crypto.randomUUID().slice(0, 8).toUpperCase()
+      const partnerId = state.src
+      const sessionId = crypto.randomUUID().replace(/-/g, "")
 
       // Send Start message to partner's direct topic
-      const partnerTopic = await TopicHasher.direct(state.src)
+      const partnerTopic = await TopicHasher.direct(partnerId)
+      const partnerCypher = new KeyPairCypher(partnerPublicKey, null)
+      mqttClient.setTopicCypher(partnerTopic, partnerCypher)
       await mqttClient.subscribe(partnerTopic)
       await mqttClient.send(
         partnerTopic,
-        makeStartMessage(
-          sessionId,
-          DeviceManager.getId(),
-          encryptedOurPublicKey
-        )
+        makeStartMessage(sessionId, DeviceManager.getId(), ourPublicKeyJwk)
       )
 
       // Save partner's public key to localStorage for future use
-      const partnerKeyId = `partner_${state.src}_publicKey`
+      const partnerKeyId = `partner_${partnerId}_publicKey`
       localStorage.setItem(partnerKeyId, JSON.stringify(partnerPublicKeyJwk))
 
       // Navigate to signal page
@@ -94,8 +92,7 @@ export const PairResponsePage = () => {
         state: {
           type: "start",
           sessionId,
-          from: state.src,
-          key: encryptedOurPublicKey,
+          partnerId,
         },
       })
     } catch (err) {

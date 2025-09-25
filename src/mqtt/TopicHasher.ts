@@ -12,13 +12,13 @@ export const hash = async (data: string, alg = "SHA-1", outputRadix = 36) => {
 
 export class TopicHasher {
   public static readonly PREFIX = "gl1d3"
-  
+
   public static async discovery(topic: string) {
-    return this.hash('discovery/' + topic)
+    return this.hash("discovery/" + topic)
   }
-  
+
   public static async direct(deviceId: string) {
-    return this.hash('direct/' + deviceId)
+    return this.hash("direct/" + deviceId)
   }
 
   // TODO: make this not break at midnight

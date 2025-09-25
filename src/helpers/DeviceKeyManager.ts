@@ -1,3 +1,4 @@
+import { Uint8Encoder } from "../mqtt/cyphers/Uint8Encoder"
 import { LOCAL_STORAGE_PREFIX } from "./useLocalStorage"
 
 export class DeviceKeyManager {
@@ -48,6 +49,16 @@ export class DeviceKeyManager {
     return this._publicKeyJwk
   }
 
+  public static async wrapPublicKey(wrappingKey: CryptoKey): Promise<string> {
+    const publicKey = await this.getPublicKey()
+    const wrapped = await crypto.subtle.wrapKey("jwk", publicKey, wrappingKey, {
+      name: this.ALGO,
+    })
+
+    const result = new Uint8Array(wrapped)
+    return Uint8Encoder.toString(result)
+  }
+
   private static async load(): Promise<CryptoKeyPair | null> {
     const storedPrivateKey = localStorage.getItem(
       LOCAL_STORAGE_PREFIX + "privateKey"
@@ -80,7 +91,7 @@ export class DeviceKeyManager {
         publicKeyData,
         { name: this.ALGO, hash: this.HASH },
         true,
-        ["encrypt"]
+        ["encrypt", "wrapKey"]
       )
 
       return { privateKey, publicKey }
@@ -104,7 +115,7 @@ export class DeviceKeyManager {
         hash: this.HASH,
       },
       true, // extractable - allows exporting the keys
-      ["encrypt", "decrypt"]
+      ["encrypt", "decrypt", "wrapKey"]
     )
   }
 
